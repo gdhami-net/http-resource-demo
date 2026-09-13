@@ -1,22 +1,44 @@
-import { Component, computed, effect, inject, input, signal, ChangeDetectionStrategy } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DebounceTimer,
+  InjectionToken,
+  computed,
+  debounced,
+  effect,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { httpResource } from '@angular/common/http';
 
 import { SEARCH_BASE, SearchResponse, searchUrl } from './search-api';
 
 /**
- * Search-as-you-type with httpResource. There is no operator and no
- * subscription: the resource reads `term`, so setting `term` is what starts a
- * request, and starting a request is what aborts the previous one.
+ * How long `debounced` waits before letting a new term through. A plain number
+ * of milliseconds in the app; the tests replace it with a promise they resolve
+ * by hand, so the debounce window is a controlled gate rather than a sleep.
+ */
+export const DEBOUNCE_WAIT = new InjectionToken<DebounceTimer<string>>('DEBOUNCE_WAIT', {
+  providedIn: 'root',
+  factory: () => 300,
+});
+
+/**
+ * The same search box, with `debounced` between the typed term and the resource.
+ * `debounced` is marked `@experimental 22.0` in `@angular/core@22.1.6`; it
+ * returns a `Resource`, so the request function reads `.value()` rather than the
+ * signal itself.
  */
 @Component({
-  selector: 'app-resource-search',
+  selector: 'app-debounced-search',
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section>
-      <h2>httpResource</h2>
+      <h2>httpResource + debounced</h2>
       <input
         type="text"
-        aria-label="httpResource search"
+        aria-label="debounced search"
         [value]="term()"
         (input)="type($any($event.target).value)"
       />
@@ -25,7 +47,7 @@ import { SEARCH_BASE, SearchResponse, searchUrl } from './search-api';
     </section>
   `,
 })
-export class ResourceSearchComponent {
+export class DebouncedSearchComponent {
   private readonly base = inject(SEARCH_BASE);
 
   /** term -> how long the server should take to answer it, in ms. */
@@ -33,8 +55,11 @@ export class ResourceSearchComponent {
 
   readonly term = signal('');
 
+  /** The term as the resource sees it: only after the typing has stopped. */
+  readonly settled = debounced(() => this.term(), inject(DEBOUNCE_WAIT));
+
   readonly results = httpResource<SearchResponse>(() => {
-    const term = this.term().trim();
+    const term = this.settled.value()?.trim();
     if (!term) {
       return undefined;
     }

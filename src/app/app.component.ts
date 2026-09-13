@@ -1,17 +1,23 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 
+import { DebouncedSearchComponent } from './debounced-search.component';
 import { NaiveSearchComponent } from './naive-search.component';
 import { OperatorSearchComponent } from './operator-search.component';
 import { ResourceSearchComponent } from './resource-search.component';
 
 /**
- * The same search box four ways, all pointed at the same recording server.
+ * The same search box five ways, all pointed at the same recording server.
  * Type "an", then immediately "ang": the server answers "an" after 600ms and
  * "ang" after 50ms, so the older answer always arrives last.
  */
 @Component({
   selector: 'app-root',
-  imports: [ResourceSearchComponent, OperatorSearchComponent, NaiveSearchComponent],
+  imports: [
+    ResourceSearchComponent,
+    OperatorSearchComponent,
+    NaiveSearchComponent,
+    DebouncedSearchComponent,
+  ],
   template: `
     <h1>httpResource, switchMap, mergeMap, and a plain subscribe</h1>
     <p>
@@ -23,6 +29,7 @@ import { ResourceSearchComponent } from './resource-search.component';
       <app-operator-search operator="switchMap" [delays]="delays" />
       <app-operator-search operator="mergeMap" [delays]="delays" />
       <app-naive-search [delays]="delays" />
+      <app-debounced-search [delays]="delays" />
     </div>
     <p>
       Server log: <a href="http://127.0.0.1:8931/report">/report</a> — the
@@ -30,6 +37,7 @@ import { ResourceSearchComponent } from './resource-search.component';
       before the server had written a response.
     </p>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     :host { display: block; font-family: system-ui, sans-serif; padding: 24px; }
     .panes { display: flex; gap: 40px; flex-wrap: wrap; }

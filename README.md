@@ -3,7 +3,7 @@
 Companion repo for the post **"The request that cancels itself"**
 ([gdhami.net](https://gdhami.net) — link added when the post is live).
 
-Four search boxes, one backend, one race. The backend is a 120-line Node server
+Five search boxes, one backend, one race. The backend is a 120-line Node server
 that takes its own latency as a query parameter and keeps a log of every request
 it was handed, including whether the client hung up before it answered. That log
 is the point: it is the difference between a request that was really cancelled
@@ -19,7 +19,7 @@ by luck rather than by cancellation.
 
 | | what the box shows at the end | server's view of the `an` request |
 |---|---|---|
-| `httpResource` | `ang` | aborted after ~166ms of the 600ms it was asked for |
+| `httpResource` | `ang` | aborted after ~156ms of the 600ms it was asked for |
 | `switchMap` | `ang` | aborted |
 | `mergeMap` | `an` | answered in full, 600ms |
 | plain `.subscribe()` | `an` | answered in full, 600ms |
@@ -28,18 +28,22 @@ The two failing rows are the bug: the stale answer for `an` lands last and
 overwrites the correct answer for `ang`. `mergeMap` is in there because reaching
 for a flattening operator is not the same as fixing the race.
 
-A real `/report` payload from the `httpResource` run:
+The fifth box puts `debounced` (new in Angular 22.0, still experimental) between
+the typed term and the resource, because `httpResource` has no debounce of its
+own.
+
+A real `/report` payload from the `httpResource` run on the default backend:
 
 ```json
 {"requests":[
-  {"seq":0,"term":"an","delayMs":600,"startedAt":3429,"endedAt":3595,"aborted":true},
-  {"seq":1,"term":"ang","delayMs":50,"startedAt":3595,"endedAt":3656,"aborted":false}
+  {"seq":0,"term":"an","delayMs":600,"startedAt":3538,"endedAt":3694,"aborted":true},
+  {"seq":1,"term":"ang","delayMs":50,"startedAt":3694,"endedAt":3753,"aborted":false}
 ]}
 ```
 
-`an` was cut off at 3595ms — 166ms into a 600ms wait, and the same millisecond
+`an` was cut off at 3694ms — 156ms into a 600ms wait, and the same millisecond
 `ang` started. The abort happens before the replacement request goes out, not
-after.
+after. The same run under `withXhr()` cut it off at 159ms.
 
 ## Run it
 
@@ -53,15 +57,23 @@ unit-test target against it, and shuts the server down again. Nothing else is
 needed; the tests are the assertions.
 
 ```
- ✓ httpResource: the abandoned request never reaches the view
- ✓ httpResource: the abort reaches the server, which stops early
- ✓ plain subscribe: the same timings put the stale answer on screen
- ✓ switchMap: the hand-rolled fix aborts the same request httpResource does
- ✓ mergeMap: an operator that is not switchMap leaves the race exactly where it was
- ✓ httpResource: a source change that produces the same URL still refetches
+ ✓ the default backend (fetch) > httpResource: the abandoned request never reaches the view
+ ✓ the default backend (fetch) > httpResource: the abort reaches the server, which stops early
+ ✓ the default backend (fetch) > plain subscribe: the same timings put the stale answer on screen
+ ✓ the default backend (fetch) > switchMap: the hand-rolled fix aborts the same request httpResource does
+ ✓ the default backend (fetch) > mergeMap: an operator that is not switchMap leaves the race exactly where it was
+ ✓ the default backend (fetch) > httpResource: a source change that produces the same URL still refetches
+ ✓ the XHR backend, via withXhr() > httpResource: the abandoned request never reaches the view
+ ✓ the XHR backend, via withXhr() > httpResource: the abort reaches the server, which stops early
+ ✓ the XHR backend, via withXhr() > plain subscribe: the same timings put the stale answer on screen
+ ✓ the XHR backend, via withXhr() > switchMap: the hand-rolled fix aborts the same request httpResource does
+ ✓ the XHR backend, via withXhr() > mergeMap: an operator that is not switchMap leaves the race exactly where it was
+ ✓ the XHR backend, via withXhr() > httpResource: a source change that produces the same URL still refetches
+ ✓ debounced() in front of the resource > the same four keystrokes without it put four requests on the wire
+ ✓ debounced() in front of the resource > a burst of keystrokes reaches the server as one request
 
  Test Files  1 passed (1)
-      Tests  6 passed (6)
+      Tests  14 passed (14)
 ```
 
 To poke at it by hand instead:
@@ -71,7 +83,7 @@ npm run server        # terminal 1
 npm start             # terminal 2, then open http://localhost:4200
 ```
 
-Type `an`, then immediately `ang`, in each of the four boxes, and read
+Type `an`, then immediately `ang`, in each of the five boxes, and read
 http://127.0.0.1:8931/report afterwards.
 
 ## What each test proves
@@ -89,20 +101,33 @@ http://127.0.0.1:8931/report afterwards.
    versions are asserted to end up showing `an` under exactly the same timings.
    If those two ever start passing, the timings have stopped racing and the
    other assertions have stopped meaning anything.
-4. **`httpResource` has no debounce.** A source change that yields a byte-identical
-   URL still issues a second request, because the resource re-reads its request
-   function whenever a signal it depends on changes.
+4. **It holds on both HTTP backends.** Those six run twice: once on the Fetch
+   backend, which `provideHttpClient()` gives you by default since Angular 22.0,
+   and once on the XHR backend via `withXhr()`. The teardown that aborts the
+   request is different code in each.
+5. **`httpResource` has no debounce.** A source change that yields a
+   byte-identical URL still issues a second request, because the resource
+   re-reads its request function whenever a signal it depends on changes.
+6. **`debounced` fixes that, and is measured rather than assumed.** Four
+   keystrokes typed with a gap between them put four requests in the log; the
+   same four typed into the debounced box put nothing in the log while the
+   window is open and one request for the final term once it closes. The test
+   hands `debounced` a promise it resolves by hand instead of a number of
+   milliseconds, so the window is a gate rather than a sleep.
 
 ## Versions
 
-Angular 21.2.22 (the v21 LTS line), TypeScript 5.9.3, zoneless, tested on Node
-26.1.0 on Windows 11. The unit tests run under the Angular 21 `unit-test`
-builder with the Vitest runner in a Node + jsdom environment, so the HTTP calls
-are jsdom's `XMLHttpRequest` against a real local socket, not a mocked backend.
-`provideHttpClient()` is used with no `withFetch()`, so this is the XHR backend;
-I have not repeated the measurements under `withFetch()` or in a real browser.
+Angular 22.1.6, TypeScript 6.0.3, `@angular/cli` and `@angular/build` 22.1.8,
+zoneless, tested on Node 26.1.0 on Windows 11. The unit tests run under the
+Angular 22 `unit-test` builder with the Vitest 4.1.11 runner in a Node + jsdom
+27.4.0 environment, against a real local socket rather than a mocked backend. On
+the XHR path the calls go through jsdom's `XMLHttpRequest`; on the default path
+they go through Node's own built-in `fetch` (undici 8.2.0), which jsdom leaves
+in place rather than replacing, so that path exercises undici and not a
+browser's network stack. None of it has been repeated in a real browser.
 
-In Angular 21 `httpResource` is marked `@experimental` in its own type
-definitions. It became public API in Angular 22.0.
+`httpResource` is public API as of Angular 22.0; its declaration in
+`@angular/common@22.1.6` carries `@publicApi 22.0`. `debounced` is newer and its
+declaration in `@angular/core@22.1.6` carries `@experimental 22.0`.
 
 MIT license.

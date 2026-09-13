@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, input, signal, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { Observable, Subject, mergeMap, switchMap } from 'rxjs';
@@ -15,6 +15,7 @@ export type SearchOperator = 'switchMap' | 'mergeMap';
  */
 @Component({
   selector: 'app-operator-search',
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section>
       <h2>{{ operator() }}</h2>

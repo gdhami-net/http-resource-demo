@@ -1,4 +1,4 @@
-import { Component, inject, input, signal } from '@angular/core';
+import { Component, inject, input, signal, ChangeDetectionStrategy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
 import { SEARCH_BASE, SearchResponse, searchUrl } from './search-api';
@@ -10,6 +10,7 @@ import { SEARCH_BASE, SearchResponse, searchUrl } from './search-api';
  */
 @Component({
   selector: 'app-naive-search',
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section>
       <h2>plain subscribe</h2>

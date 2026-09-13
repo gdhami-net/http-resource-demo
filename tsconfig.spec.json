@@ -3,5 +3,17 @@
   "compilerOptions": {
     "outDir": "./out-tsc/spec"
   },
-  "include": ["src/**/*.spec.ts", "src/**/*.ts", "src/**/*.d.ts"]
+  "include": [
+    "src/**/*.spec.ts",
+    "src/**/*.ts",
+    "src/**/*.d.ts"
+  ],
+  "angularCompilerOptions": {
+    "extendedDiagnostics": {
+      "checks": {
+        "nullishCoalescingNotNullable": "suppress",
+        "optionalChainNotNullable": "suppress"
+      }
+    }
+  }
 }
