@@ -122,9 +122,9 @@ zoneless, tested on Node 26.1.0 on Windows 11. The unit tests run under the
 Angular 22 `unit-test` builder with the Vitest 4.1.11 runner in a Node + jsdom
 27.4.0 environment, against a real local socket rather than a mocked backend. On
 the XHR path the calls go through jsdom's `XMLHttpRequest`; on the default path
-they go through Node's own built-in `fetch` (undici 8.2.0), which jsdom leaves
-in place rather than replacing, so that path exercises undici and not a
-browser's network stack. None of it has been repeated in a real browser.
+Angular's fetch backend calls `globalThis.fetch` directly, which here is Node's
+own built-in `fetch` (undici 8.2.0; jsdom 27 defines no `fetch` of its own), so
+that path exercises undici and not a browser's network stack. None of it has been repeated in a real browser.
 
 `httpResource` is public API as of Angular 22.0; its declaration in
 `@angular/common@22.1.6` carries `@publicApi 22.0`. `debounced` is newer and its
